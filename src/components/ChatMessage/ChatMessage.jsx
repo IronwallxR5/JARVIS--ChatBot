@@ -104,8 +104,24 @@ const Avatar = memo(({ sender }) => {
       aria-hidden="true"
     >
       {isBot ? (
-        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="24" height="24">
+          {/* AI Brain/Circuit */}
+          <circle cx="12" cy="12" r="9" stroke="currentColor" fill="none"/>
+          {/* Central processor */}
+          <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor"/>
+          {/* Circuit nodes */}
+          <circle cx="6" cy="6" r="1.5" fill="currentColor"/>
+          <circle cx="18" cy="6" r="1.5" fill="currentColor"/>
+          <circle cx="6" cy="18" r="1.5" fill="currentColor"/>
+          <circle cx="18" cy="18" r="1.5" fill="currentColor"/>
+          {/* Connecting lines */}
+          <line x1="7.5" y1="6" x2="9" y2="9" stroke="currentColor" strokeWidth="1"/>
+          <line x1="16.5" y1="6" x2="15" y2="9" stroke="currentColor" strokeWidth="1"/>
+          <line x1="7.5" y1="18" x2="9" y2="15" stroke="currentColor" strokeWidth="1"/>
+          <line x1="16.5" y1="18" x2="15" y2="15" stroke="currentColor" strokeWidth="1"/>
+          {/* Eyes */}
+          <circle cx="10.5" cy="11" r="0.8" fill="var(--jarvis-primary, #00d4ff)"/>
+          <circle cx="13.5" cy="11" r="0.8" fill="var(--jarvis-primary, #00d4ff)"/>
         </svg>
       ) : (
         <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">

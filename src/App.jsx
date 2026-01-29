@@ -41,7 +41,6 @@ function App() {
       {/* Header */}
       <header className="app-header" role="banner">
         <h1>{APP_CONFIG.name}</h1>
-        <p>{APP_CONFIG.description}</p>
       </header>
       
       {/* Main Content */}
@@ -51,7 +50,6 @@ function App() {
       
       {/* Footer */}
       <footer className="app-footer" role="contentinfo">
-        <p>© {currentYear} • {APP_CONFIG.name} AI Assistant</p>
         <div className="creator-credit">
           <span className="creator-tag">
             <span className="code-icon" aria-hidden="true">&lt;/&gt;</span>

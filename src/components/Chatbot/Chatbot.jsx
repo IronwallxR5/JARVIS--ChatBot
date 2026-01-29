@@ -20,40 +20,17 @@ import { SENDER } from '../../constants';
 import './Chatbot.css';
 
 /**
- * Chat header with status indicator and JARVIS branding
+ * Floating arc reactor decoration
  */
-const ChatHeader = memo(({ isConfigured, isStreaming }) => (
-  <header className="chat-header glass-panel" role="banner">
-    <div className="header-content">
-      <div className="header-status">
-        <span 
-          className={`status-indicator ${isConfigured ? (isStreaming ? 'streaming' : 'online') : 'offline'}`}
-          aria-label={isConfigured ? (isStreaming ? 'Streaming' : 'Online') : 'Offline'}
-        />
-        <h1 className="header-title">
-          <span className="jarvis-letter">J</span>
-          <span className="jarvis-letter">A</span>
-          <span className="jarvis-letter">R</span>
-          <span className="jarvis-letter">V</span>
-          <span className="jarvis-letter">I</span>
-          <span className="jarvis-letter">S</span>
-        </h1>
-      </div>
-      <span className="header-subtitle">
-        Just A Rather Very Intelligent System
-      </span>
-    </div>
-    <div className="header-decoration" aria-hidden="true">
-      <div className="arc-reactor">
-        <div className="reactor-core"></div>
-        <div className="reactor-ring"></div>
-        <div className="reactor-glow"></div>
-      </div>
-    </div>
-  </header>
+const ArcReactor = memo(() => (
+  <div className="floating-reactor" aria-hidden="true">
+    <div className="reactor-core"></div>
+    <div className="reactor-ring"></div>
+    <div className="reactor-glow"></div>
+  </div>
 ));
 
-ChatHeader.displayName = 'ChatHeader';
+ArcReactor.displayName = 'ArcReactor';
 
 /**
  * Streaming message component - renders the active streaming content
@@ -151,7 +128,7 @@ const Chatbot = memo(() => {
       role="region"
       aria-label="JARVIS AI Chat"
     >
-      <ChatHeader isConfigured={isConfigured} isStreaming={isStreaming} />
+      <ArcReactor />
       
       {error && (
         <ErrorBanner 
