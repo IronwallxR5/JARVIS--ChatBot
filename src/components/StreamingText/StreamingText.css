@@ -1,0 +1,78 @@
+/**
+ * StreamingText Styles
+ * Optimized for 60fps rendering during streaming
+ */
+
+.streaming-text-container {
+  /* CSS containment - tells browser this content is isolated */
+  contain: content;
+  
+  /* Optimize for off-screen content */
+  content-visibility: auto;
+  
+  /* Minimal layout */
+  display: block;
+  width: 100%;
+}
+
+.streaming-text-content {
+  /* Use transform for GPU acceleration */
+  transform: translateZ(0);
+  will-change: contents;
+  
+  /* Text styling */
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.6;
+  color: var(--text-primary, #e8e8e8);
+  
+  /* Whitespace handling */
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.streaming-text {
+  /* Ensure proper text rendering */
+  display: inline;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Animated cursor */
+.streaming-text-cursor {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+
+.cursor-block {
+  display: inline-block;
+  width: 8px;
+  height: 1.2em;
+  background: var(--jarvis-primary, #00d4ff);
+  border-radius: 1px;
+  
+  /* GPU-accelerated animation */
+  animation: cursor-blink 0.8s ease-in-out infinite;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
+@keyframes cursor-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0.3;
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .cursor-block {
+    animation: none;
+    opacity: 0.7;
+  }
+}

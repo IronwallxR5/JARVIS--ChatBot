@@ -1,7 +1,13 @@
 /**
  * useChat Hook
- * Centralized chat state management with streaming support
- * Optimized for 60fps rendering during streaming
+ * Centralized chat state management with high-performance streaming
+ * 
+ * Performance Strategy:
+ * =====================
+ * 1. BUFFER STRATEGY: Tokens accumulate in a mutable ref (no React state per token)
+ * 2. RAF BATCHING: State flushes happen on requestAnimationFrame (~16ms intervals)
+ * 3. ISOLATED STATE: Streaming content is separate from message list (no full re-renders)
+ * 4. DEFERRED FINALIZATION: Message list only updates when stream completes
  */
 
 import { useState, useCallback, useRef, useEffect, useTransition } from 'react';
@@ -19,51 +25,62 @@ import {
 } from '../constants';
 import { validateMessage, hasValidApiKey } from '../utils/helpers';
 
+// Buffer flush interval (ms) - 60fps = ~16ms, we use slightly longer for stability
+const BUFFER_FLUSH_INTERVAL = 50;
+
 /**
  * Custom hook for managing chat state and operations
- * @returns {Object} - Chat state and methods
+ * Optimized for 60fps streaming performance
  */
 export const useChat = () => {
-  // State management
+  // ============================================
+  // STABLE STATE (changes trigger re-renders)
+  // ============================================
   const [messages, setMessages] = useState([]);
   const [chatState, setChatState] = useState(CHAT_STATE.IDLE);
   const [error, setError] = useState(null);
   const [inputValue, setInputValue] = useState('');
   
-  // Isolated streaming state - prevents full re-renders
+  // Isolated streaming state - ONLY StreamingMessage component subscribes to this
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingMessageId, setStreamingMessageId] = useState(null);
   
-  // React 19 transition for non-urgent updates
+  // React 19 transition for non-blocking UI updates
   const [isPending, startTransition] = useTransition();
   
-  // Refs
-  const messagesEndRef = useRef(null);
+  // ============================================
+  // MUTABLE REFS (no re-renders, 60fps safe)
+  // ============================================
   const inputRef = useRef(null);
   const aiProviderRef = useRef(null);
   const initializedRef = useRef(false);
-  const lastChunkTimeRef = useRef(0);
-  const pendingChunkRef = useRef('');
+  
+  // Streaming buffer system
+  const streamBufferRef = useRef('');
+  const lastFlushTimeRef = useRef(0);
   const rafIdRef = useRef(null);
-
-  // Initialize AI provider
+  const flushScheduledRef = useRef(false);
+  const streamActiveRef = useRef(false);
+  
+  // ============================================
+  // INITIALIZATION
+  // ============================================
+  
   useEffect(() => {
     if (!aiProviderRef.current) {
       aiProviderRef.current = getGeminiProvider();
     }
     
-    // Cleanup RAF on unmount
     return () => {
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
       }
     };
   }, []);
 
-  // Check if API is configured
   const isConfigured = hasValidApiKey();
 
-  // Initialize with welcome messages (only once)
   useEffect(() => {
     if (isConfigured && !initializedRef.current) {
       initializedRef.current = true;
@@ -75,69 +92,97 @@ export const useChat = () => {
     }
   }, [isConfigured]);
 
-  // Auto-scroll to bottom (throttled during streaming)
-  const scrollToBottom = useCallback((smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({ 
-      behavior: smooth ? 'smooth' : 'instant' 
-    });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-  
-  // Also scroll during streaming (less frequently)
-  useEffect(() => {
-    if (streamingContent) {
-      scrollToBottom(false);
-    }
-  }, [streamingContent, scrollToBottom]);
-
-  // Focus input
   const focusInput = useCallback(() => {
     inputRef.current?.focus();
   }, []);
 
-  /**
-   * Throttled streaming update - batches updates for 60fps
-   * Uses requestAnimationFrame for optimal rendering
-   */
-  const updateStreamingContent = useCallback((content) => {
-    pendingChunkRef.current = content;
+  // ============================================
+  // STREAMING BUFFER SYSTEM
+  // ============================================
+  
+  const flushBuffer = useCallback(() => {
+    if (!streamActiveRef.current) return;
     
-    if (!rafIdRef.current) {
-      rafIdRef.current = requestAnimationFrame(() => {
-        setStreamingContent(pendingChunkRef.current);
-        rafIdRef.current = null;
-      });
+    const bufferedContent = streamBufferRef.current;
+    if (bufferedContent) {
+      setStreamingContent(bufferedContent);
     }
+    
+    flushScheduledRef.current = false;
+    rafIdRef.current = null;
   }, []);
 
-  /**
-   * Cancel active streaming
-   */
-  const cancelStreaming = useCallback(() => {
-    const provider = aiProviderRef.current || getGeminiProvider();
-    provider.cancelStream();
+  const scheduleFlush = useCallback(() => {
+    if (flushScheduledRef.current || !streamActiveRef.current) return;
     
-    // Finalize current streaming message if exists
-    if (streamingMessageId && streamingContent) {
-      const finalMessage = createBotMessage(streamingContent);
-      finalMessage.id = streamingMessageId;
-      setMessages(prev => [...prev, finalMessage]);
+    const now = performance.now();
+    const timeSinceLastFlush = now - lastFlushTimeRef.current;
+    
+    if (timeSinceLastFlush >= BUFFER_FLUSH_INTERVAL) {
+      flushScheduledRef.current = true;
+      lastFlushTimeRef.current = now;
+      rafIdRef.current = requestAnimationFrame(flushBuffer);
+    } else {
+      const remainingTime = BUFFER_FLUSH_INTERVAL - timeSinceLastFlush;
+      flushScheduledRef.current = true;
+      
+      setTimeout(() => {
+        if (streamActiveRef.current) {
+          lastFlushTimeRef.current = performance.now();
+          rafIdRef.current = requestAnimationFrame(flushBuffer);
+        } else {
+          flushScheduledRef.current = false;
+        }
+      }, remainingTime);
+    }
+  }, [flushBuffer]);
+
+  const accumulateToken = useCallback((accumulatedText) => {
+    streamBufferRef.current = accumulatedText;
+    scheduleFlush();
+  }, [scheduleFlush]);
+
+  const resetStreamingState = useCallback(() => {
+    streamActiveRef.current = false;
+    streamBufferRef.current = '';
+    flushScheduledRef.current = false;
+    lastFlushTimeRef.current = 0;
+    
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
     }
     
     setStreamingContent('');
     setStreamingMessageId(null);
-    setChatState(CHAT_STATE.IDLE);
-  }, [streamingMessageId, streamingContent]);
+  }, []);
 
-  /**
-   * Send a message with streaming response
-   * @param {string} text - Message text
-   */
+  // ============================================
+  // STREAM CANCELLATION
+  // ============================================
+  
+  const cancelStreaming = useCallback(() => {
+    const provider = aiProviderRef.current || getGeminiProvider();
+    provider.cancelStream();
+    
+    const partialContent = streamBufferRef.current;
+    const currentStreamingId = streamingMessageId;
+    
+    if (currentStreamingId && partialContent && partialContent.trim()) {
+      const partialMessage = createBotMessage(partialContent);
+      partialMessage.id = currentStreamingId;
+      setMessages(prev => [...prev, partialMessage]);
+    }
+    
+    resetStreamingState();
+    setChatState(CHAT_STATE.IDLE);
+  }, [streamingMessageId, resetStreamingState]);
+
+  // ============================================
+  // SEND MESSAGE WITH STREAMING
+  // ============================================
+  
   const sendMessage = useCallback(async (text = inputValue) => {
-    // Validate input
     const validation = validateMessage(text);
     if (!validation.isValid) {
       setError(validation.error);
@@ -147,13 +192,15 @@ export const useChat = () => {
     const userMessage = createUserMessage(validation.value);
     const streamingId = `streaming-${Date.now()}`;
     
-    // Clear input and add user message (use transition for non-blocking UI)
     startTransition(() => {
       setInputValue('');
       setMessages(prev => [...prev, userMessage]);
     });
     
-    // Initialize streaming state
+    streamActiveRef.current = true;
+    streamBufferRef.current = '';
+    lastFlushTimeRef.current = performance.now();
+    
     setStreamingMessageId(streamingId);
     setStreamingContent('');
     setChatState(CHAT_STATE.STREAMING);
@@ -164,28 +211,34 @@ export const useChat = () => {
       
       await provider.generateStreamingResponse(validation.value, {
         onChunk: (accumulatedText) => {
-          // Throttled update for smooth 60fps rendering
-          updateStreamingContent(accumulatedText);
+          accumulateToken(accumulatedText);
         },
+        
         onComplete: (finalText) => {
-          // Finalize the message
           const botMessage = createBotMessage(finalText);
           botMessage.id = streamingId;
           
           startTransition(() => {
             setMessages(prev => [...prev, botMessage]);
-            setStreamingContent('');
-            setStreamingMessageId(null);
+            resetStreamingState();
             setChatState(CHAT_STATE.SUCCESS);
           });
         },
+        
         onError: (err) => {
           console.error('Streaming error:', err);
           
-          const errorMessage = createErrorMessage(err);
-          setMessages(prev => [...prev, errorMessage]);
-          setStreamingContent('');
-          setStreamingMessageId(null);
+          const partialContent = streamBufferRef.current;
+          if (partialContent && partialContent.trim()) {
+            const partialMessage = createBotMessage(partialContent + '\n\n[Stream interrupted]');
+            partialMessage.id = streamingId;
+            setMessages(prev => [...prev, partialMessage]);
+          } else {
+            const errorMessage = createErrorMessage(err);
+            setMessages(prev => [...prev, errorMessage]);
+          }
+          
+          resetStreamingState();
           setError(err.message);
           setChatState(CHAT_STATE.ERROR);
         },
@@ -195,25 +248,25 @@ export const useChat = () => {
       
       const errorMessage = createErrorMessage(err);
       setMessages(prev => [...prev, errorMessage]);
-      setStreamingContent('');
-      setStreamingMessageId(null);
+      resetStreamingState();
       setError(err.message);
       setChatState(CHAT_STATE.ERROR);
     }
-  }, [inputValue, updateStreamingContent, startTransition]);
+  }, [inputValue, accumulateToken, resetStreamingState, startTransition]);
 
-  /**
-   * Handle input change
-   * @param {string} value - New input value
-   */
+  // ============================================
+  // INPUT HANDLING
+  // ============================================
+  
   const handleInputChange = useCallback((value) => {
     setInputValue(value);
     if (error) setError(null);
   }, [error]);
 
-  /**
-   * Clear all messages
-   */
+  // ============================================
+  // MESSAGE MANAGEMENT
+  // ============================================
+  
   const clearMessages = useCallback(() => {
     cancelStreaming();
     setMessages([]);
@@ -222,9 +275,6 @@ export const useChat = () => {
     initializedRef.current = false;
   }, [cancelStreaming]);
 
-  /**
-   * Retry the last failed message
-   */
   const retryLastMessage = useCallback(() => {
     if (chatState !== CHAT_STATE.ERROR) return;
     
@@ -238,18 +288,10 @@ export const useChat = () => {
     }
   }, [chatState, messages, sendMessage]);
 
-  /**
-   * Delete a specific message
-   * @param {string} messageId - Message ID to delete
-   */
   const deleteMessage = useCallback((messageId) => {
     setMessages(prev => prev.filter(msg => msg.id !== messageId));
   }, []);
 
-  /**
-   * Copy message text to clipboard
-   * @param {string} text - Text to copy
-   */
   const copyMessage = useCallback(async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -259,26 +301,29 @@ export const useChat = () => {
     }
   }, []);
 
+  // ============================================
+  // COMPUTED VALUES
+  // ============================================
+  
+  const isLoading = chatState === CHAT_STATE.LOADING || chatState === CHAT_STATE.STREAMING;
+  const isStreaming = chatState === CHAT_STATE.STREAMING;
+
+  // ============================================
+  // PUBLIC API
+  // ============================================
+  
   return {
-    // State
     messages,
     chatState,
     error,
     inputValue,
     isConfigured,
-    isLoading: chatState === CHAT_STATE.LOADING || chatState === CHAT_STATE.STREAMING,
-    isStreaming: chatState === CHAT_STATE.STREAMING,
+    isLoading,
+    isStreaming,
     isPending,
-    
-    // Streaming state (isolated for performance)
     streamingContent,
     streamingMessageId,
-    
-    // Refs
-    messagesEndRef,
     inputRef,
-    
-    // Actions
     sendMessage,
     handleInputChange,
     clearMessages,
@@ -286,10 +331,7 @@ export const useChat = () => {
     deleteMessage,
     copyMessage,
     focusInput,
-    scrollToBottom,
     cancelStreaming,
-    
-    // Setters (for advanced use cases)
     setInputValue,
     setError,
   };

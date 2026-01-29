@@ -6,3 +6,4 @@
 export { useChat } from './useChat';
 export { useLocalStorage } from './useLocalStorage';
 export { useAutoResize } from './useAutoResize';
+export { useStickyScroll } from './useStickyScroll';
