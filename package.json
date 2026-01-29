@@ -1,17 +1,35 @@
 {
-  "name": "jarvis---chatbot",
+  "name": "jarvis-chatbot",
+  "version": "1.0.0",
+  "description": "Advanced AI chatbot assistant powered by Google Gemini 2.0 - Production-ready React application",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
+  "author": {
+    "name": "Padam",
+    "url": "https://github.com/IronwallxR5/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IronwallxR5/JARVIS--ChatBot"
+  },
+  "keywords": [
+    "chatbot",
+    "ai",
+    "gemini",
+    "react",
+    "jarvis",
+    "assistant"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@google/generative-ai": "^0.2.1",
-    "dotenv": "^16.4.5",
+    "prop-types": "^15.8.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -25,5 +43,8 @@
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
     "vite": "^6.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

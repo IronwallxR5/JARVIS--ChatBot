@@ -1,13 +1,50 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/jarvis-icon.svg" />
+    <link rel="apple-touch-icon" href="/jarvis-icon.svg" />
+    
+    <!-- SEO Meta Tags -->
+    <title>JARVIS - AI Assistant | Powered by Google Gemini 2.0</title>
+    <meta name="description" content="JARVIS is an advanced AI chatbot assistant powered by Google's Gemini 2.0 technology. Experience intelligent conversations with a modern, responsive interface." />
+    <meta name="keywords" content="AI, chatbot, JARVIS, Gemini, assistant, artificial intelligence" />
+    <meta name="author" content="Padam" />
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="JARVIS - AI Assistant" />
+    <meta property="og:description" content="Experience intelligent conversations with JARVIS, powered by Google Gemini 2.0." />
+    <meta property="og:image" content="/og-image.png" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="JARVIS - AI Assistant" />
+    <meta name="twitter:description" content="Experience intelligent conversations with JARVIS, powered by Google Gemini 2.0." />
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#10a37f" />
+    
+    <!-- Preconnect to fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   </head>
   <body>
+    <!-- No-script fallback -->
+    <noscript>
+      <div style="text-align: center; padding: 2rem; font-family: system-ui, sans-serif;">
+        <h1>JavaScript Required</h1>
+        <p>JARVIS requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
+      </div>
+    </noscript>
+    
+    <!-- React Root -->
     <div id="root"></div>
+    
+    <!-- Main Script -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
