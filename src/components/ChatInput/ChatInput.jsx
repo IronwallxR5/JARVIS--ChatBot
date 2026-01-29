@@ -140,7 +140,6 @@ const ChatInput = memo(({
           disabled={isLoading || isDisabled}
           rows={1}
           aria-label="Message input"
-          aria-describedby="input-hint"
           autoComplete="off"
           spellCheck="true"
         />
@@ -151,21 +150,6 @@ const ChatInput = memo(({
           isStreaming={isStreaming}
           onCancel={onCancel}
         />
-      </div>
-      
-      <div id="input-hint" className="input-hint">
-        <span className="hint-text">
-          {isStreaming ? (
-            <>Press <kbd>Esc</kbd> to stop streaming</>
-          ) : (
-            <>Press <kbd>Enter</kbd> to send, <kbd>Shift+Enter</kbd> for new line</>
-          )}
-        </span>
-        {value.length > INPUT_VALIDATION.MAX_LENGTH * 0.8 && (
-          <span className="character-count">
-            {value.length}/{INPUT_VALIDATION.MAX_LENGTH}
-          </span>
-        )}
       </div>
     </form>
   );
