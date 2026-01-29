@@ -1,6 +1,6 @@
 /**
  * ChatInput Component
- * Input field with send button for chat messages
+ * Input field with send button and streaming cancel support
  */
 
 import React, { memo, useCallback, useRef } from 'react';
@@ -12,34 +12,59 @@ import './ChatInput.css';
 /**
  * Send button with loading state
  */
-const SendButton = memo(({ disabled, isLoading }) => (
-  <button
-    type="submit"
-    className={`send-button ${isLoading ? 'loading' : ''}`}
-    disabled={disabled}
-    aria-label={isLoading ? 'Sending message...' : 'Send message'}
-    title={isLoading ? 'Sending...' : 'Send message (Enter)'}
-  >
-    {isLoading ? (
-      <div className="send-button-loader" aria-hidden="true">
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
-    ) : (
-      <svg 
-        viewBox="0 0 24 24" 
-        fill="none" 
-        stroke="currentColor" 
-        strokeWidth="2"
-        aria-hidden="true"
+const SendButton = memo(({ disabled, isLoading, isStreaming, onCancel }) => {
+  // Show stop button during streaming
+  if (isStreaming && onCancel) {
+    return (
+      <button
+        type="button"
+        className="send-button streaming"
+        onClick={onCancel}
+        aria-label="Stop streaming"
+        title="Stop streaming (Esc)"
       >
-        <line x1="22" y1="2" x2="11" y2="13" />
-        <polygon points="22 2 15 22 11 13 2 9 22 2" />
-      </svg>
-    )}
-  </button>
-));
+        <svg 
+          viewBox="0 0 24 24" 
+          fill="currentColor"
+          aria-hidden="true"
+          width="18"
+          height="18"
+        >
+          <rect x="6" y="6" width="12" height="12" rx="2" />
+        </svg>
+      </button>
+    );
+  }
+  
+  return (
+    <button
+      type="submit"
+      className={`send-button ${isLoading ? 'loading' : ''}`}
+      disabled={disabled}
+      aria-label={isLoading ? 'Sending message...' : 'Send message'}
+      title={isLoading ? 'Sending...' : 'Send message (Enter)'}
+    >
+      {isLoading ? (
+        <div className="send-button-loader" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      ) : (
+        <svg 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <line x1="22" y1="2" x2="11" y2="13" />
+          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+        </svg>
+      )}
+    </button>
+  );
+});
 
 SendButton.displayName = 'SendButton';
 
@@ -50,7 +75,9 @@ const ChatInput = memo(({
   value,
   onChange,
   onSubmit,
+  onCancel,
   isLoading = false,
+  isStreaming = false,
   isDisabled = false,
   placeholder = 'Message JARVIS...',
   inputRef: externalRef,
@@ -68,17 +95,24 @@ const ChatInput = memo(({
   }, [value, isLoading, isDisabled, onSubmit]);
 
   const handleKeyDown = useCallback((e) => {
+    // Cancel streaming on Escape
+    if (e.key === KEYBOARD_SHORTCUTS.CLEAR_INPUT && isStreaming && onCancel) {
+      e.preventDefault();
+      onCancel();
+      return;
+    }
+    
     // Submit on Enter (without Shift)
     if (e.key === KEYBOARD_SHORTCUTS.SEND_MESSAGE && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
     }
     
-    // Clear on Escape
-    if (e.key === KEYBOARD_SHORTCUTS.CLEAR_INPUT) {
+    // Clear on Escape (when not streaming)
+    if (e.key === KEYBOARD_SHORTCUTS.CLEAR_INPUT && !isStreaming) {
       onChange('');
     }
-  }, [handleSubmit, onChange]);
+  }, [handleSubmit, onChange, isStreaming, onCancel]);
 
   const handleChange = useCallback((e) => {
     const newValue = e.target.value;
@@ -91,7 +125,7 @@ const ChatInput = memo(({
 
   return (
     <form 
-      className="chat-input-form" 
+      className={`chat-input-form ${isStreaming ? 'streaming' : ''}`}
       onSubmit={handleSubmit}
       aria-label="Message input form"
     >
@@ -102,7 +136,7 @@ const ChatInput = memo(({
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder={isDisabled ? 'Chat unavailable' : placeholder}
+          placeholder={isDisabled ? 'Chat unavailable' : (isStreaming ? 'JARVIS is responding...' : placeholder)}
           disabled={isLoading || isDisabled}
           rows={1}
           aria-label="Message input"
@@ -114,12 +148,18 @@ const ChatInput = memo(({
         <SendButton 
           disabled={isSubmitDisabled} 
           isLoading={isLoading}
+          isStreaming={isStreaming}
+          onCancel={onCancel}
         />
       </div>
       
       <div id="input-hint" className="input-hint">
         <span className="hint-text">
-          Press <kbd>Enter</kbd> to send, <kbd>Shift+Enter</kbd> for new line
+          {isStreaming ? (
+            <>Press <kbd>Esc</kbd> to stop streaming</>
+          ) : (
+            <>Press <kbd>Enter</kbd> to send, <kbd>Shift+Enter</kbd> for new line</>
+          )}
         </span>
         {value.length > INPUT_VALIDATION.MAX_LENGTH * 0.8 && (
           <span className="character-count">
@@ -137,7 +177,9 @@ ChatInput.propTypes = {
   value: PropTypes.string.isRequired,
   onChange: PropTypes.func.isRequired,
   onSubmit: PropTypes.func.isRequired,
+  onCancel: PropTypes.func,
   isLoading: PropTypes.bool,
+  isStreaming: PropTypes.bool,
   isDisabled: PropTypes.bool,
   placeholder: PropTypes.string,
   inputRef: PropTypes.oneOfType([

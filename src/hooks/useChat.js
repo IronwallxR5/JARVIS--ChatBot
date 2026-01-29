@@ -1,9 +1,10 @@
 /**
  * useChat Hook
- * Centralized chat state management and logic
+ * Centralized chat state management with streaming support
+ * Optimized for 60fps rendering during streaming
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useTransition } from 'react';
 import { 
   createUserMessage, 
   createBotMessage, 
@@ -23,23 +24,40 @@ import { validateMessage, hasValidApiKey } from '../utils/helpers';
  * @returns {Object} - Chat state and methods
  */
 export const useChat = () => {
-  // State management - always use useState (no conditional hooks)
+  // State management
   const [messages, setMessages] = useState([]);
   const [chatState, setChatState] = useState(CHAT_STATE.IDLE);
   const [error, setError] = useState(null);
   const [inputValue, setInputValue] = useState('');
+  
+  // Isolated streaming state - prevents full re-renders
+  const [streamingContent, setStreamingContent] = useState('');
+  const [streamingMessageId, setStreamingMessageId] = useState(null);
+  
+  // React 19 transition for non-urgent updates
+  const [isPending, startTransition] = useTransition();
   
   // Refs
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const aiProviderRef = useRef(null);
   const initializedRef = useRef(false);
+  const lastChunkTimeRef = useRef(0);
+  const pendingChunkRef = useRef('');
+  const rafIdRef = useRef(null);
 
   // Initialize AI provider
   useEffect(() => {
     if (!aiProviderRef.current) {
       aiProviderRef.current = getGeminiProvider();
     }
+    
+    // Cleanup RAF on unmount
+    return () => {
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
   }, []);
 
   // Check if API is configured
@@ -57,14 +75,23 @@ export const useChat = () => {
     }
   }, [isConfigured]);
 
-  // Auto-scroll to bottom
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Auto-scroll to bottom (throttled during streaming)
+  const scrollToBottom = useCallback((smooth = true) => {
+    messagesEndRef.current?.scrollIntoView({ 
+      behavior: smooth ? 'smooth' : 'instant' 
+    });
   }, []);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+  
+  // Also scroll during streaming (less frequently)
+  useEffect(() => {
+    if (streamingContent) {
+      scrollToBottom(false);
+    }
+  }, [streamingContent, scrollToBottom]);
 
   // Focus input
   const focusInput = useCallback(() => {
@@ -72,7 +99,41 @@ export const useChat = () => {
   }, []);
 
   /**
-   * Send a message
+   * Throttled streaming update - batches updates for 60fps
+   * Uses requestAnimationFrame for optimal rendering
+   */
+  const updateStreamingContent = useCallback((content) => {
+    pendingChunkRef.current = content;
+    
+    if (!rafIdRef.current) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        setStreamingContent(pendingChunkRef.current);
+        rafIdRef.current = null;
+      });
+    }
+  }, []);
+
+  /**
+   * Cancel active streaming
+   */
+  const cancelStreaming = useCallback(() => {
+    const provider = aiProviderRef.current || getGeminiProvider();
+    provider.cancelStream();
+    
+    // Finalize current streaming message if exists
+    if (streamingMessageId && streamingContent) {
+      const finalMessage = createBotMessage(streamingContent);
+      finalMessage.id = streamingMessageId;
+      setMessages(prev => [...prev, finalMessage]);
+    }
+    
+    setStreamingContent('');
+    setStreamingMessageId(null);
+    setChatState(CHAT_STATE.IDLE);
+  }, [streamingMessageId, streamingContent]);
+
+  /**
+   * Send a message with streaming response
    * @param {string} text - Message text
    */
   const sendMessage = useCallback(async (text = inputValue) => {
@@ -84,32 +145,62 @@ export const useChat = () => {
     }
 
     const userMessage = createUserMessage(validation.value);
+    const streamingId = `streaming-${Date.now()}`;
     
-    // Clear input and add user message
-    setInputValue('');
-    setMessages(prev => [...prev, userMessage]);
-    setChatState(CHAT_STATE.LOADING);
+    // Clear input and add user message (use transition for non-blocking UI)
+    startTransition(() => {
+      setInputValue('');
+      setMessages(prev => [...prev, userMessage]);
+    });
+    
+    // Initialize streaming state
+    setStreamingMessageId(streamingId);
+    setStreamingContent('');
+    setChatState(CHAT_STATE.STREAMING);
     setError(null);
 
     try {
-      // Get AI response
       const provider = aiProviderRef.current || getGeminiProvider();
-      const responseText = await provider.generateResponse(validation.value);
       
-      // Add bot message
-      const botMessage = createBotMessage(responseText);
-      setMessages(prev => [...prev, botMessage]);
-      setChatState(CHAT_STATE.SUCCESS);
+      await provider.generateStreamingResponse(validation.value, {
+        onChunk: (accumulatedText) => {
+          // Throttled update for smooth 60fps rendering
+          updateStreamingContent(accumulatedText);
+        },
+        onComplete: (finalText) => {
+          // Finalize the message
+          const botMessage = createBotMessage(finalText);
+          botMessage.id = streamingId;
+          
+          startTransition(() => {
+            setMessages(prev => [...prev, botMessage]);
+            setStreamingContent('');
+            setStreamingMessageId(null);
+            setChatState(CHAT_STATE.SUCCESS);
+          });
+        },
+        onError: (err) => {
+          console.error('Streaming error:', err);
+          
+          const errorMessage = createErrorMessage(err);
+          setMessages(prev => [...prev, errorMessage]);
+          setStreamingContent('');
+          setStreamingMessageId(null);
+          setError(err.message);
+          setChatState(CHAT_STATE.ERROR);
+        },
+      });
     } catch (err) {
       console.error('Chat error:', err);
       
-      // Add error message
       const errorMessage = createErrorMessage(err);
       setMessages(prev => [...prev, errorMessage]);
+      setStreamingContent('');
+      setStreamingMessageId(null);
       setError(err.message);
       setChatState(CHAT_STATE.ERROR);
     }
-  }, [inputValue]);
+  }, [inputValue, updateStreamingContent, startTransition]);
 
   /**
    * Handle input change
@@ -124,11 +215,12 @@ export const useChat = () => {
    * Clear all messages
    */
   const clearMessages = useCallback(() => {
+    cancelStreaming();
     setMessages([]);
     setError(null);
     setChatState(CHAT_STATE.IDLE);
-    initializedRef.current = false; // Allow re-initialization
-  }, []);
+    initializedRef.current = false;
+  }, [cancelStreaming]);
 
   /**
    * Retry the last failed message
@@ -136,13 +228,11 @@ export const useChat = () => {
   const retryLastMessage = useCallback(() => {
     if (chatState !== CHAT_STATE.ERROR) return;
     
-    // Find the last user message
     const lastUserMessage = [...messages]
       .reverse()
       .find(msg => msg.sender === SENDER.USER);
     
     if (lastUserMessage) {
-      // Remove the error message and retry
       setMessages(prev => prev.filter(msg => msg.status !== MESSAGE_STATUS.ERROR));
       sendMessage(lastUserMessage.text);
     }
@@ -176,7 +266,13 @@ export const useChat = () => {
     error,
     inputValue,
     isConfigured,
-    isLoading: chatState === CHAT_STATE.LOADING,
+    isLoading: chatState === CHAT_STATE.LOADING || chatState === CHAT_STATE.STREAMING,
+    isStreaming: chatState === CHAT_STATE.STREAMING,
+    isPending,
+    
+    // Streaming state (isolated for performance)
+    streamingContent,
+    streamingMessageId,
     
     // Refs
     messagesEndRef,
@@ -191,6 +287,7 @@ export const useChat = () => {
     copyMessage,
     focusInput,
     scrollToBottom,
+    cancelStreaming,
     
     // Setters (for advanced use cases)
     setInputValue,

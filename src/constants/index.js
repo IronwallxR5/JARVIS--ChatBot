@@ -33,6 +33,7 @@ export const MESSAGE_STATUS = {
 export const CHAT_STATE = {
   IDLE: 'idle',
   LOADING: 'loading',
+  STREAMING: 'streaming',  // New: actively receiving streamed tokens
   ERROR: 'error',
   SUCCESS: 'success',
 };
@@ -60,21 +61,17 @@ export const ERROR_MESSAGES = {
 // Welcome messages shown when chat starts
 export const WELCOME_MESSAGES = [
   {
-    text: "Hello! I'm JARVIS, your AI assistant powered by Google's Gemini 2.0 technology. How may I assist you today?",
-    sender: SENDER.BOT,
-  },
-  {
-    text: "I can answer questions, help with coding, generate content, or just have a conversation. What would you like to explore?",
+    text: "Good to see you. I'm JARVIS — Just A Rather Very Intelligent System. Built to cut through noise and deliver clarity.",
     sender: SENDER.BOT,
   },
 ];
 
 // Quick action suggestions for the user
 export const QUICK_ACTIONS = [
-  { label: '💡 Explain a concept', prompt: 'Explain to me how' },
-  { label: '💻 Help with code', prompt: 'Help me write code for' },
-  { label: '✍️ Write content', prompt: 'Write a short' },
-  { label: '🤔 Answer a question', prompt: 'What is' },
+  { label: 'Analyze a problem', prompt: 'Analyze this situation and give me your honest assessment:' },
+  { label: 'Debug my code', prompt: 'Review this code and identify issues:' },
+  { label: 'Strategic advice', prompt: 'I need strategic advice on:' },
+  { label: 'Explain clearly', prompt: 'Explain this concept in simple terms:' },
 ];
 
 // Keyboard shortcuts

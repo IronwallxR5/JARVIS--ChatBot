@@ -1,13 +1,96 @@
 /**
  * ChatMessage Component
- * Renders individual chat messages with proper styling and accessibility
+ * Renders individual chat messages with Markdown support and code highlighting
  */
 
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { SENDER, MESSAGE_STATUS } from '../../constants';
 import { formatTimestamp, copyToClipboard } from '../../utils/helpers';
 import './ChatMessage.css';
+
+/**
+ * Custom code block with syntax highlighting and copy button
+ */
+const CodeBlock = memo(({ language, children }) => {
+  const [copied, setCopied] = useState(false);
+  
+  const handleCopy = async () => {
+    const success = await copyToClipboard(String(children).replace(/\n$/, ''));
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Custom theme overrides for JARVIS aesthetic
+  const customStyle = {
+    ...oneDark,
+    'pre[class*="language-"]': {
+      ...oneDark['pre[class*="language-"]'],
+      background: 'var(--code-bg, #0d1117)',
+      borderRadius: 'var(--radius-md, 8px)',
+      border: '1px solid var(--border-color, rgba(0, 212, 255, 0.2))',
+      margin: '0.5rem 0',
+      fontSize: '0.875rem',
+    },
+    'code[class*="language-"]': {
+      ...oneDark['code[class*="language-"]'],
+      background: 'transparent',
+      fontFamily: 'var(--font-mono, "JetBrains Mono", "Fira Code", monospace)',
+    },
+  };
+
+  return (
+    <div className="code-block-wrapper">
+      <div className="code-block-header">
+        <span className="code-language">{language || 'code'}</span>
+        <button
+          className={`code-copy-button ${copied ? 'copied' : ''}`}
+          onClick={handleCopy}
+          aria-label={copied ? 'Copied!' : 'Copy code'}
+        >
+          {copied ? (
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Copied!
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              Copy
+            </>
+          )}
+        </button>
+      </div>
+      <SyntaxHighlighter
+        language={language || 'text'}
+        style={customStyle}
+        customStyle={{
+          margin: 0,
+          padding: '1rem',
+          maxHeight: '400px',
+          overflow: 'auto',
+        }}
+        showLineNumbers={children.split('\n').length > 3}
+        wrapLines
+      >
+        {String(children).replace(/\n$/, '')}
+      </SyntaxHighlighter>
+    </div>
+  );
+});
+
+CodeBlock.displayName = 'CodeBlock';
 
 /**
  * Avatar component for message sender
@@ -20,7 +103,15 @@ const Avatar = memo(({ sender }) => {
       className={`message-avatar ${isBot ? 'bot-avatar' : 'user-avatar'}`}
       aria-hidden="true"
     >
-      {isBot ? 'J' : 'U'}
+      {isBot ? (
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+        </svg>
+      )}
     </div>
   );
 });
@@ -28,12 +119,76 @@ const Avatar = memo(({ sender }) => {
 Avatar.displayName = 'Avatar';
 
 /**
- * Message content with optional copy functionality
+ * Markdown renderer components configuration
  */
-const MessageContent = memo(({ text }) => {
-  const [copied, setCopied] = useState(false);
+const createMarkdownComponents = () => ({
+  // Code blocks with syntax highlighting
+  code: ({ node, inline, className, children, ...props }) => {
+    const match = /language-(\w+)/.exec(className || '');
+    const language = match ? match[1] : '';
+    
+    if (!inline && (match || String(children).includes('\n'))) {
+      return (
+        <CodeBlock language={language}>
+          {children}
+        </CodeBlock>
+      );
+    }
+    
+    return (
+      <code className="inline-code" {...props}>
+        {children}
+      </code>
+    );
+  },
+  
+  // Enhanced links
+  a: ({ href, children }) => (
+    <a 
+      href={href} 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className="markdown-link"
+    >
+      {children}
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+        <polyline points="15 3 21 3 21 9" />
+        <line x1="10" y1="14" x2="21" y2="3" />
+      </svg>
+    </a>
+  ),
+  
+  // Tables with JARVIS styling
+  table: ({ children }) => (
+    <div className="table-wrapper">
+      <table className="markdown-table">{children}</table>
+    </div>
+  ),
+  
+  // Blockquotes
+  blockquote: ({ children }) => (
+    <blockquote className="markdown-blockquote">{children}</blockquote>
+  ),
+  
+  // Lists
+  ul: ({ children }) => <ul className="markdown-list">{children}</ul>,
+  ol: ({ children }) => <ol className="markdown-list ordered">{children}</ol>,
+  
+  // Paragraphs (prevent extra margin)
+  p: ({ children }) => <p className="markdown-paragraph">{children}</p>,
+});
 
-  const handleCopy = async () => {
+/**
+ * Message content with Markdown rendering
+ */
+const MessageContent = memo(({ text, isBot }) => {
+  const [copied, setCopied] = useState(false);
+  
+  // Memoize markdown components to prevent recreation
+  const markdownComponents = useMemo(() => createMarkdownComponents(), []);
+
+  const handleCopyAll = async () => {
     const success = await copyToClipboard(text);
     if (success) {
       setCopied(true);
@@ -43,16 +198,22 @@ const MessageContent = memo(({ text }) => {
 
   return (
     <div className="message-content-wrapper">
-      <div 
-        className="message-text"
-        // Using dangerouslySetInnerHTML only for our controlled, sanitized content
-        // In production, use a proper markdown renderer like react-markdown
-      >
-        {text}
+      <div className="message-text">
+        {isBot ? (
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={markdownComponents}
+          >
+            {text}
+          </ReactMarkdown>
+        ) : (
+          // User messages as plain text
+          <p className="markdown-paragraph">{text}</p>
+        )}
       </div>
       <button
         className={`copy-button ${copied ? 'copied' : ''}`}
-        onClick={handleCopy}
+        onClick={handleCopyAll}
         aria-label={copied ? 'Copied!' : 'Copy message'}
         title={copied ? 'Copied!' : 'Copy to clipboard'}
       >
@@ -74,16 +235,29 @@ const MessageContent = memo(({ text }) => {
 MessageContent.displayName = 'MessageContent';
 
 /**
+ * Streaming indicator with JARVIS animation
+ */
+const StreamingCursor = memo(() => (
+  <span className="streaming-cursor" aria-hidden="true">
+    <span className="cursor-dot"></span>
+    <span className="cursor-dot"></span>
+    <span className="cursor-dot"></span>
+  </span>
+));
+
+StreamingCursor.displayName = 'StreamingCursor';
+
+/**
  * Main ChatMessage component
  */
-const ChatMessage = memo(({ message, showTimestamp = true }) => {
+const ChatMessage = memo(({ message, showTimestamp = true, isStreaming = false }) => {
   const { text, sender, timestamp, status } = message;
   const isBot = sender === SENDER.BOT;
   const isError = status === MESSAGE_STATUS.ERROR;
 
   return (
     <div 
-      className={`chat-message ${isBot ? 'bot' : 'user'} ${isError ? 'error' : ''}`}
+      className={`chat-message ${isBot ? 'bot' : 'user'} ${isError ? 'error' : ''} ${isStreaming ? 'streaming' : ''}`}
       role="article"
       aria-label={`${isBot ? 'JARVIS' : 'You'} said`}
     >
@@ -95,7 +269,7 @@ const ChatMessage = memo(({ message, showTimestamp = true }) => {
             <span className="message-sender">
               {isBot ? 'JARVIS' : 'You'}
             </span>
-            {showTimestamp && timestamp && (
+            {showTimestamp && timestamp && !isStreaming && (
               <time 
                 className="message-timestamp"
                 dateTime={new Date(timestamp).toISOString()}
@@ -103,9 +277,14 @@ const ChatMessage = memo(({ message, showTimestamp = true }) => {
                 {formatTimestamp(timestamp)}
               </time>
             )}
+            {isStreaming && (
+              <span className="streaming-badge">Streaming...</span>
+            )}
           </div>
           
-          <MessageContent text={text} />
+          <MessageContent text={text} isBot={isBot} />
+          
+          {isStreaming && <StreamingCursor />}
           
           {isError && (
             <div className="message-error-badge" role="alert">
@@ -129,6 +308,7 @@ ChatMessage.propTypes = {
     status: PropTypes.oneOf(Object.values(MESSAGE_STATUS)),
   }).isRequired,
   showTimestamp: PropTypes.bool,
+  isStreaming: PropTypes.bool,
 };
 
 export default ChatMessage;

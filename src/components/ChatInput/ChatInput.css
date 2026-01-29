@@ -1,11 +1,38 @@
 /**
  * ChatInput Component Styles
+ * JARVIS/Stark Industries Theme
  */
 
 .chat-input-form {
   padding: 1rem 1.5rem 1.5rem;
   background: var(--bg-primary);
   border-top: 1px solid var(--border-color);
+  position: relative;
+}
+
+/* Streaming state indicator */
+.chat-input-form.streaming::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--jarvis-primary),
+    var(--jarvis-accent),
+    var(--jarvis-primary),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: streamingBar 1.5s linear infinite;
+}
+
+@keyframes streamingBar {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
 }
 
 .input-container {
@@ -16,19 +43,23 @@
   margin: 0 auto;
   background: var(--bg-input);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   transition: all 0.2s ease;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .input-container:focus-within {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-alpha);
+  border-color: var(--jarvis-primary);
+  box-shadow: 
+    0 0 0 2px rgba(0, 212, 255, 0.15),
+    0 0 20px rgba(0, 212, 255, 0.1);
 }
 
 .chat-input {
   flex: 1;
-  padding: 0.875rem 3rem 0.875rem 1rem;
+  padding: 0.875rem 3.5rem 0.875rem 1rem;
   border: none;
   outline: none;
   font-size: 1rem;
@@ -51,7 +82,7 @@
   opacity: 0.6;
 }
 
-/* Send Button */
+/* Send Button - JARVIS Theme */
 .send-button {
   position: absolute;
   right: 0.5rem;
@@ -59,19 +90,20 @@
   width: 36px;
   height: 36px;
   border: none;
-  border-radius: 8px;
-  background: var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--gradient-primary);
   color: white;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
 }
 
 .send-button:hover:not(:disabled) {
-  background: var(--color-primary-hover);
   transform: scale(1.05);
+  box-shadow: 0 0 25px rgba(0, 212, 255, 0.5);
 }
 
 .send-button:active:not(:disabled) {
@@ -82,6 +114,7 @@
   background: var(--bg-tertiary);
   color: var(--text-tertiary);
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .send-button svg {
@@ -89,9 +122,30 @@
   height: 18px;
 }
 
+/* Streaming Stop Button */
+.send-button.streaming {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+  animation: stopButtonPulse 1s ease-in-out infinite;
+}
+
+.send-button.streaming:hover {
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
+}
+
+@keyframes stopButtonPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
 /* Loading State */
 .send-button.loading {
   background: var(--bg-tertiary);
+  box-shadow: none;
 }
 
 .send-button-loader {
@@ -103,7 +157,7 @@
 .send-button-loader span {
   width: 4px;
   height: 4px;
-  background: var(--text-secondary);
+  background: var(--jarvis-primary);
   border-radius: 50%;
   animation: loaderBounce 0.6s infinite alternate;
 }
@@ -142,9 +196,11 @@
 .hint-text kbd {
   padding: 0.125rem 0.375rem;
   background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-family: inherit;
   font-size: 0.7rem;
+  color: var(--jarvis-primary);
 }
 
 .character-count {
@@ -162,8 +218,8 @@
   }
   
   .chat-input {
-    padding: 0.75rem 2.75rem 0.75rem 0.875rem;
-    font-size: 1rem; /* Prevents zoom on iOS */
+    padding: 0.75rem 3rem 0.75rem 0.875rem;
+    font-size: 1rem;
   }
   
   .send-button {
@@ -177,6 +233,6 @@
   }
   
   .input-hint {
-    display: none; /* Hide hints on mobile */
+    display: none;
   }
 }
