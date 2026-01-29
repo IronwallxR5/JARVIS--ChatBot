@@ -96,8 +96,10 @@ export const STORAGE_KEYS = {
 };
 
 // API configuration
+// Priority: gemini-2.5-flash (best) → lite variants as fallback
 export const API_CONFIG = {
   MODEL: 'gemini-2.5-flash',
+  FALLBACK_MODELS: ['gemini-2.5-flash-lite', 'gemini-flash-lite-latest'],
   MAX_RETRIES: 3,
   RETRY_DELAY: 1000,
   TIMEOUT: 30000,

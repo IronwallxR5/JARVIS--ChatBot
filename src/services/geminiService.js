@@ -46,6 +46,27 @@ export class GeminiProvider extends AIProvider {
   }
 
   /**
+   * Get a model instance by name
+   * @private
+   */
+  _getModel(modelName) {
+    return this.genAI.getGenerativeModel({ 
+      model: modelName,
+      systemInstruction: getSystemPrompt(),
+    });
+  }
+
+  /**
+   * Get all models to try (primary + fallbacks)
+   * @private
+   */
+  _getModelsToTry() {
+    const primary = this.config.model || API_CONFIG.MODEL;
+    const fallbacks = API_CONFIG.FALLBACK_MODELS || [];
+    return [primary, ...fallbacks];
+  }
+
+  /**
    * Refresh model with current system prompt
    * Call this if system prompt changes at runtime
    */
@@ -108,49 +129,54 @@ export class GeminiProvider extends AIProvider {
     // Create new abort controller for this request
     this.activeAbortController = new AbortController();
 
-    try {
-      const contextualPrompt = buildContextualPrompt(prompt, conversationHistory);
-      
-      // Use streaming API
-      const result = await this.model.generateContentStream(contextualPrompt);
-      
-      let accumulatedText = '';
-      
-      // Process stream chunks
-      for await (const chunk of result.stream) {
-        // Check if cancelled
-        if (this.activeAbortController?.signal.aborted) {
-          break;
+    const contextualPrompt = buildContextualPrompt(prompt, conversationHistory);
+    const modelsToTry = this._getModelsToTry();
+    let lastError = null;
+
+    // Try each model in order (fallback on quota exceeded)
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Attempting with model: ${modelName}`);
+        const model = this._getModel(modelName);
+        
+        const result = await model.generateContentStream(contextualPrompt);
+        let accumulatedText = '';
+        
+        for await (const chunk of result.stream) {
+          if (this.activeAbortController?.signal.aborted) {
+            break;
+          }
+          const chunkText = chunk.text();
+          accumulatedText += chunkText;
+          onChunk?.(accumulatedText);
         }
         
-        const chunkText = chunk.text();
-        accumulatedText += chunkText;
+        this.activeAbortController = null;
+        console.log(`Success with model: ${modelName}`);
+        onComplete?.(accumulatedText);
+        return accumulatedText;
+      } catch (error) {
+        console.warn(`Model ${modelName} failed:`, error.message);
+        lastError = error;
         
-        // Call chunk callback with accumulated text
-        onChunk?.(accumulatedText);
+        if (error.name === 'AbortError') {
+          this.activeAbortController = null;
+          return;
+        }
+        // Continue to next model
       }
-      
-      // Stream complete
-      this.activeAbortController = null;
-      onComplete?.(accumulatedText);
-      
-      return accumulatedText;
-    } catch (error) {
-      this.activeAbortController = null;
-      
-      // Don't treat abort as error
-      if (error.name === 'AbortError') {
-        return;
-      }
-      
-      const enhancedError = this._handleError(error);
-      onError?.(enhancedError);
-      throw enhancedError;
     }
+
+    // All models failed
+    this.activeAbortController = null;
+    const enhancedError = this._handleError(lastError);
+    onError?.(enhancedError);
+    throw enhancedError;
   }
 
   /**
    * Generate a non-streaming response using Gemini (legacy support)
+   * Uses fallback strategy like streaming method
    * @param {string} prompt - User prompt
    * @param {Object} options - Additional options
    * @returns {Promise<string>} - AI response
@@ -160,24 +186,26 @@ export class GeminiProvider extends AIProvider {
       throw this._createError(ERROR_TYPES.API_KEY_MISSING, 'Gemini API key not configured');
     }
 
-    const { conversationHistory = [], retryCount = 0 } = options;
+    const { conversationHistory = [] } = options;
+    const contextualPrompt = buildContextualPrompt(prompt, conversationHistory);
+    const modelsToTry = this._getModelsToTry();
+    let lastError = null;
 
-    try {
-      const contextualPrompt = buildContextualPrompt(prompt, conversationHistory);
-      const result = await this.model.generateContent(contextualPrompt);
-      const response = await result.response;
-      
-      return response.text();
-    } catch (error) {
-      const enhancedError = this._handleError(error);
-      
-      if (this._isRetryableError(error) && retryCount < API_CONFIG.MAX_RETRIES) {
-        await this._delay(API_CONFIG.RETRY_DELAY * (retryCount + 1));
-        return this.generateResponse(prompt, { ...options, retryCount: retryCount + 1 });
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Attempting with model: ${modelName}`);
+        const model = this._getModel(modelName);
+        const result = await model.generateContent(contextualPrompt);
+        const response = await result.response;
+        console.log(`Success with model: ${modelName}`);
+        return response.text();
+      } catch (error) {
+        console.warn(`Model ${modelName} failed:`, error.message);
+        lastError = error;
       }
-      
-      throw enhancedError;
     }
+
+    throw this._handleError(lastError);
   }
 
   /**
