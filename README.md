@@ -12,8 +12,8 @@
 ```
 
 [![React](https://img.shields.io/badge/React-19.0.0-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
-[![Vite](https://img.shields.io/badge/Vite-6.3.1-646CFF?style=for-the-badge&logo=vite)](https://vitejs.dev/)
-[![Gemini](https://img.shields.io/badge/Gemini_AI-2.0-8E75B2?style=for-the-badge&logo=google)](https://ai.google.dev/)
+[![Vite](https://img.shields.io/badge/Vite-6.3.4-646CFF?style=for-the-badge&logo=vite)](https://vitejs.dev/)
+[![Gemini](https://img.shields.io/badge/Gemini_AI-2.5-8E75B2?style=for-the-badge&logo=google)](https://ai.google.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
 **A production-ready AI chatbot interface built with clean architecture principles**
@@ -26,13 +26,14 @@
 
 ## 📖 Overview
 
-JARVIS is a modern, scalable AI chatbot application powered by Google's Gemini 2.0 Flash model. Built with React 19 and designed with clean architecture principles, this project demonstrates production-grade patterns for building AI-powered applications.
+JARVIS is a modern, scalable AI chatbot application powered by Google's Gemini 2.5 Flash model with automatic fallback support. Built with React 19 and designed with clean architecture principles, this project demonstrates production-grade patterns for building AI-powered applications.
 
 **This project showcases:**
+- Real-time streaming responses with 60fps performance
+- Automatic model fallback when quota limits are reached
 - Clean code architecture and separation of concerns
-- Modern React patterns (hooks, memo, lazy loading ready)
-- Scalable state management
-- Accessible and responsive UI design
+- Modern React patterns (hooks, memo, RAF batching)
+- Accessible and responsive JARVIS-themed UI design
 - Extensible service layer for AI providers
 
 ---
@@ -40,16 +41,19 @@ JARVIS is a modern, scalable AI chatbot application powered by Google's Gemini 2
 ## ✨ Features
 
 ### Core Functionality
-- 🧠 **AI-Powered Conversations** - Leverages Google Gemini 2.0 for intelligent responses
-- 💬 **Real-time Chat** - Smooth, responsive chat interface
+- 🧠 **AI-Powered Conversations** - Leverages Google Gemini 2.5 Flash with model fallback
+- ⚡ **Real-time Streaming** - Token-by-token response streaming at 60fps
+- 🔄 **Auto Model Fallback** - Switches models when quota limits are reached
 - ⌨️ **Keyboard Shortcuts** - Enter to send, Shift+Enter for new lines
-- 📋 **Copy Messages** - One-click message copying
+- 📋 **Copy Messages** - One-click message copying with syntax highlighting
+- ❌ **Cancel Streaming** - Stop responses mid-generation
 
 ### User Experience
-- 🎨 **Modern UI** - Clean, ChatGPT-inspired interface
+- 🎨 **JARVIS Theme** - Iron Man inspired UI with arc reactor animations
 - 📱 **Fully Responsive** - Optimized for all screen sizes
-- ⏳ **Loading States** - Elegant typing indicators
+- ⚡ **Markdown Rendering** - Full markdown support with code highlighting
 - 🔔 **Error Handling** - User-friendly error messages with retry options
+- 📜 **Smart Auto-scroll** - Respects user scroll position during streaming
 
 ### Accessibility
 - ♿ **ARIA Labels** - Full screen reader support
@@ -61,7 +65,7 @@ JARVIS is a modern, scalable AI chatbot application powered by Google's Gemini 2
 - 🏗️ **Clean Architecture** - Services, hooks, and components separation
 - 🔌 **Pluggable AI Providers** - Easy to swap AI backends
 - 📦 **Modular Components** - Reusable, self-contained components
-- ⚡ **Performance Optimized** - Memoization and efficient re-renders
+- ⚡ **60fps Streaming** - RAF batching, buffer strategy, isolated renders
 
 ---
 
@@ -124,7 +128,8 @@ src/
 │   └── ErrorBanner/     # Error notification
 │
 ├── hooks/               # Custom React hooks
-│   ├── useChat.js       # Chat state management
+│   ├── useChat.js       # Chat state with streaming buffer
+│   ├── useStickyScroll.js # Smart auto-scroll during streaming
 │   ├── useLocalStorage.js # Persistent storage
 │   └── useAutoResize.js # Textarea auto-resize
 │
@@ -254,11 +259,18 @@ The modular architecture makes it easy to add:
 
 ## 📊 Performance
 
-### Optimizations Implemented
+### Streaming Optimizations (60fps)
+- **Buffer Strategy** - Tokens accumulate in mutable refs, not React state
+- **RAF Batching** - State flushes on requestAnimationFrame (~50ms intervals)
+- **Isolated Rendering** - Streaming content separate from message list
+- **useStickyScroll** - Passive scroll listeners, debounced position checks
+- **Plain Text During Stream** - Markdown parsing only on completion
+
+### React Optimizations
 - **React.memo** on all components to prevent unnecessary re-renders
 - **useCallback** for event handlers
-- **Efficient state updates** avoiding spreading large arrays
-- **CSS animations** using `transform` and `opacity` for GPU acceleration
+- **useTransition** for non-blocking UI updates (React 19)
+- **CSS containment** for isolated layout calculations
 
 ### Lighthouse Scores (Target)
 - Performance: 95+
@@ -288,28 +300,6 @@ npm run test:coverage
 | `npm run preview` | Preview production build |
 | `npm run lint` | Run ESLint |
 | `npm run lint:fix` | Fix ESLint issues |
-
----
-
-## 🛣️ Roadmap
-
-### v1.1 (Planned)
-- [ ] Dark mode support
-- [ ] Chat history persistence
-- [ ] Export conversations
-- [ ] Voice input support
-
-### v1.2 (Planned)
-- [ ] Multi-conversation support
-- [ ] Custom AI model selection
-- [ ] Plugin system
-- [ ] Internationalization (i18n)
-
-### v2.0 (Future)
-- [ ] Local LLM support
-- [ ] RAG (Retrieval-Augmented Generation)
-- [ ] Multi-modal (images, files)
-- [ ] Real-time collaboration
 
 ---
 
